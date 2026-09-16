@@ -47,7 +47,8 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 #### 3. Standard DID Document Authoring (`didDocument` required on `createDID`)
 
-- **Changed**: `createDID` now requires a full, standard W3C `didDocument: DIDDocument` with `{DID}` or `{SCID}` placeholders.
+- **Changed**: `createDID` now requires a full, standard W3C `didDocument: DIDDocument`. Use `{SCID}` for the specification-defined SCID placeholder, or `{DID}` as a convenience placeholder for the DID derived from the `address` option.
+- **Placeholder behavior**: For example, with `address: 'example.com'`, `{DID}#key-1` is first treated as `did:webvh:{SCID}:example.com#key-1`. The runtime then calculates the SCID and replaces `{SCID}` so the published document contains the final DID, such as `did:webvh:<SCID>:example.com#key-1`. Neither placeholder remains in the created DID Document or log.
 - **Removed**: Legacy partial creation fields (`verificationMethods`, `authentication`, `assertionMethod`, `keyAgreement`, `capabilityInvocation`, `capabilityDelegation`, `services`, `alsoKnownAs`) and the proprietary `purpose` field on `VerificationMethod`.
 - **Reason**: Full W3C DID Core alignment, controller sovereignty over fragment IDs (`#key-1`), multi-relationship support, and removal of opinionated synthesis heuristics.
 - **Upgrade**: Provide complete `didDocument` structure to `createDID` → [Full guide](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods)

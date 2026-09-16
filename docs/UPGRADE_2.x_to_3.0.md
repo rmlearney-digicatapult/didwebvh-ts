@@ -120,6 +120,8 @@ In 2.x, `createDID` accepted partial parameters such as `verificationMethods`, `
 
 In 3.0.0, `createDID` requires a full, standard W3C `didDocument: DIDDocument`. The caller explicitly authors the document structure using `{DID}` (or `{SCID}`) placeholders for identifiers, allowing full control over key fragments (`#key-1`), verification relationships, services, and extensions.
 
+`{SCID}` is the specification-defined placeholder for the self-certifying identifier. `{DID}` is a convenience placeholder for the DID derived from the `address` option. For example, with `address: 'example.com'`, `{DID}#key-0` is first resolved as `did:webvh:{SCID}:example.com#key-0`; after the SCID is calculated, the runtime replaces `{SCID}` with the actual value. Both placeholders are creation-time templates only and are absent from the final DID Document and log.
+
 **Old (2.x)**:
 
 ```typescript
