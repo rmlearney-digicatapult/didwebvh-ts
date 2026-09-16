@@ -174,8 +174,6 @@ const { did, doc } = await createDID({
 2. **Use `{DID}` or `{SCID}` placeholders** in `id`, `controller`, verification methods, and services as needed.
 3. **Explicitly assign verification relationships** (`authentication`, `assertionMethod`, `keyAgreement`, etc.) by referencing the verification method IDs.
 4. **Pass `didDocument` to `createDID`**. For `updateDID`, supply `didDocument` if modifying document state, or omit it to retain the authenticated previous state.
-     });
-   });
 
 ### Common Patterns
 
