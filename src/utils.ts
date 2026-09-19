@@ -1,5 +1,5 @@
 import { METHOD } from './constants.js';
-import type { DIDLog, WitnessProofFileEntry } from './interfaces.js';
+import type { DIDLog, FetchLike, WitnessProofFileEntry } from './interfaces.js';
 
 // Shared constants and types
 
@@ -365,14 +365,14 @@ export const buildDidLogUrl = (id: string) => {
   return `${baseUrl}/.well-known/did.jsonl`;
 };
 
-export async function fetchLogFromIdentifier(identifier: string): Promise<DIDLog> {
+export async function fetchLogFromIdentifier(identifier: string, fetchFn: FetchLike = fetch): Promise<DIDLog> {
   const parseDidLogText = (text: string): DIDLog => {
     return text.split('\n').map((line) => JSON.parse(line));
   };
 
   try {
     const url = buildDidLogUrl(identifier);
-    const response = await fetch(url);
+    const response = await fetchFn(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -388,11 +388,11 @@ export async function fetchLogFromIdentifier(identifier: string): Promise<DIDLog
   }
 }
 
-export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileEntry[]> {
+export async function fetchWitnessProofs(did: string, fetchFn: FetchLike = fetch): Promise<WitnessProofFileEntry[]> {
   try {
     const url = buildDidLogUrl(did).replace('did.jsonl', 'did-witness.json');
 
-    const response = await fetch(url);
+    const response = await fetchFn(url);
     if (!response.ok) {
       return [];
     }

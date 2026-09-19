@@ -161,7 +161,7 @@ export const resolveDID = async (did: string, options: ResolutionOptions = {}): 
     // Validate the requested identifier before asking the caller to locate a controlled log.
     const { scid } = parseDidWebvhIdentifier(did, 'DID');
     const controlledLog = options.resolveControlledDid ? await options.resolveControlledDid(did) : undefined;
-    const log = controlledLog ?? (await fetchLogFromIdentifier(did));
+    const log = controlledLog ?? (await fetchLogFromIdentifier(did, options.fetch));
     const result = await resolveLog(log, { ...options, verifier, scid, requestedDid: did });
     return toResolutionResult(result);
   } catch (e) {

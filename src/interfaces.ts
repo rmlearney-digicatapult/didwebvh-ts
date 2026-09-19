@@ -45,6 +45,11 @@ export interface Verifier {
   verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean>;
 }
 
+/**
+ * A fetch-compatible function used by the resolver for HTTP retrieval.
+ */
+export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+
 export interface SignerOptions {
   verificationMethod?: VerificationMethod | null;
   useStaticId?: boolean;
@@ -228,6 +233,8 @@ export interface ResolutionOptions {
   witnessProofs?: WitnessProofFileEntry[];
   // Return locally controlled DID log or undefined
   resolveControlledDid?: (did: string) => Promise<DIDLog | undefined>;
+  // Override for network fetches used to retrieve the DID log and witness proof file
+  fetch?: FetchLike;
 }
 
 export interface WitnessProofFileEntry {
