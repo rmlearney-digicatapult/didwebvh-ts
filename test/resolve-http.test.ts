@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { DIDLog } from '../src/interfaces.js';
+import type { DIDLog, FetchLike } from '../src/interfaces.js';
 import { createDID, resolveDID } from '../src/method.js';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils.js';
 import {
@@ -17,13 +17,19 @@ let consoleErrorSpy: { mockRestore: () => void } | undefined;
 
 // Stub the global fetch with a single canned response, returning the mock so
 // tests can assert on the requested URL.
-const stubFetchResponse = (body: string, init: { ok?: boolean; status?: number } = {}) => {
-  const fetchMock = vi.fn().mockResolvedValue({
+const createMockResponse = (body: string, init: { ok?: boolean; status?: number } = {}) =>
+  ({
     ok: init.ok ?? true,
     status: init.status ?? 200,
     text: async () => body,
     json: async () => JSON.parse(body),
-  });
+  }) as Response;
+
+const createFetchMock = (body: string, init: { ok?: boolean; status?: number } = {}) =>
+  vi.fn().mockResolvedValue(createMockResponse(body, init)) as unknown as ReturnType<typeof vi.fn> & FetchLike;
+
+const stubFetchResponse = (body: string, init: { ok?: boolean; status?: number } = {}) => {
+  const fetchMock = vi.fn().mockResolvedValue(createMockResponse(body, init));
   globalThis.fetch = fetchMock as unknown as typeof fetch;
   return fetchMock;
 };
@@ -75,6 +81,18 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didDocument!.id).toBe(did);
     expect(result.didResolutionMetadata.error).toBeUndefined();
     expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
+  });
+
+  test('uses a custom fetch override when resolving a DID by identifier', async () => {
+    stubFetchFailure(new Error('global fetch should not be called'));
+    const customFetch = createFetchMock(toJsonl(log));
+
+    const result = await resolveDID(did, { verifier, fetch: customFetch });
+
+    expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(result.didDocument?.id).toBe(did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
   });
 
   test.each([
@@ -240,6 +258,18 @@ describe('fetchLogFromIdentifier', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://example.com/dids/issuer/did.jsonl');
     expect(fetched).toEqual(entries);
   });
+
+  test('uses a custom fetch override for DID log retrieval', async () => {
+    const entries = [{ versionId: '1-abc' }, { versionId: '2-def' }] as DIDLog;
+    stubFetchFailure(new Error('global fetch should not be called'));
+    const customFetch = createFetchMock(entries.map((entry) => JSON.stringify(entry)).join('\n'));
+
+    const fetched = await fetchLogFromIdentifier('did:webvh:scid123:example.com:dids:issuer', customFetch);
+
+    expect(customFetch).toHaveBeenCalledWith('https://example.com/dids/issuer/did.jsonl');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(fetched).toEqual(entries);
+  });
 });
 
 describe('fetchWitnessProofs', () => {
@@ -254,6 +284,18 @@ describe('fetchWitnessProofs', () => {
     const result = await fetchWitnessProofs('did:webvh:scid123:example.com');
 
     expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+    expect(result).toEqual(proofs);
+  });
+
+  test('uses a custom fetch override for witness proof retrieval', async () => {
+    const proofs = [{ versionId: '1-abc', proof: [] }];
+    stubFetchFailure(new Error('global fetch should not be called'));
+    const customFetch = createFetchMock(JSON.stringify(proofs));
+
+    const result = await fetchWitnessProofs('did:webvh:scid123:example.com', customFetch);
+
+    expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result).toEqual(proofs);
   });
 

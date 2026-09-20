@@ -1,6 +1,6 @@
 import { Resolver } from 'did-resolver';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { DIDLog } from '../src/interfaces.js';
+import type { DIDLog, FetchLike } from '../src/interfaces.js';
 import { createDID, deactivateDID, updateDID } from '../src/method.js';
 import { getResolver } from '../src/resolver.js';
 import {
@@ -16,14 +16,20 @@ const toJsonl = (log: DIDLog) => log.map((entry) => JSON.stringify(entry)).join(
 const originalFetch = globalThis.fetch;
 let consoleErrorSpy: ReturnType<typeof vi.spyOn> | undefined;
 
-// Serve a fixed DID log JSONL over the mocked fetch so resolution-by-identifier works.
-const serveLog = (log: DIDLog) => {
-  globalThis.fetch = vi.fn().mockResolvedValue({
+const createFetchResponse = (log: DIDLog) =>
+  ({
     ok: true,
     status: 200,
     text: async () => toJsonl(log),
     json: async () => log,
-  }) as unknown as typeof fetch;
+  }) as Response;
+
+const createFetchMock = (log: DIDLog) =>
+  vi.fn().mockResolvedValue(createFetchResponse(log)) as unknown as ReturnType<typeof vi.fn> & FetchLike;
+
+// Serve a fixed DID log JSONL over the mocked fetch so resolution-by-identifier works.
+const serveLog = (log: DIDLog) => {
+  globalThis.fetch = vi.fn().mockResolvedValue(createFetchResponse(log)) as unknown as typeof fetch;
 };
 
 const serve404 = () => {
@@ -81,6 +87,68 @@ describe('getResolver integration', () => {
     expect(result.didResolutionMetadata.error).toBeUndefined();
     expect(result.didDocument?.id).toBe(did);
     expect(result.didDocumentMetadata.versionId).toBe(v2Id);
+  });
+
+  test('uses a custom fetch configured on getResolver', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('global fetch should not be called')) as unknown as typeof fetch;
+    const customFetch = createFetchMock(fullLog);
+    const customResolver = new Resolver(getResolver({ verifier, fetch: customFetch }));
+
+    const result = await customResolver.resolve(did);
+
+    expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocument?.id).toBe(did);
+  });
+
+  test('uses a custom fetch supplied through did-resolver options', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('global fetch should not be called')) as unknown as typeof fetch;
+    const customFetch = createFetchMock(fullLog);
+    const customResolver = new Resolver(getResolver({ verifier }));
+
+    const result = await customResolver.resolve(did, { fetch: customFetch });
+
+    expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocument?.id).toBe(did);
+  });
+
+  test('per-resolution custom fetch takes precedence over getResolver fetch', async () => {
+    const configuredFetch = vi
+      .fn()
+      .mockRejectedValue(new Error('configured fetch should not be called')) as unknown as ReturnType<typeof vi.fn> &
+      FetchLike;
+    const perCallFetch = createFetchMock(fullLog);
+    const customResolver = new Resolver(getResolver({ verifier, fetch: configuredFetch }));
+
+    const result = await customResolver.resolve(did, { fetch: perCallFetch });
+
+    expect(perCallFetch).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+    expect(configuredFetch).not.toHaveBeenCalled();
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocument?.id).toBe(did);
+  });
+
+  test('non-function fetch option returns invalidOptions', async () => {
+    const result = await resolver.resolve(did, { fetch: 'not a function' });
+
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(result.didDocument).toBeNull();
+  });
+
+  test('non-function getResolver fetch config returns invalidOptions', async () => {
+    const invalidResolver = new Resolver(getResolver({ verifier, fetch: 'not a function' as unknown as FetchLike }));
+
+    const result = await invalidResolver.resolve(did);
+
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(result.didDocument).toBeNull();
   });
 
   test('?versionId selects a historical version', async () => {

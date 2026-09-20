@@ -12,6 +12,7 @@ import type {
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
+  FetchLike,
   ResolutionOptions,
   WitnessProofFileEntry,
 } from '../interfaces.js';
@@ -619,6 +620,7 @@ const finalizeResolutionChecks = async ({
       did: resolverContext.did,
       logEntries,
       verifier: options.verifier,
+      fetchFn: options.fetch,
     });
     resolverContext.witnessChecks = witnessChecks;
   }
@@ -634,6 +636,7 @@ const finalizeResolutionChecks = async ({
  * @param did The DID whose witness proof file should be fetched when needed.
  * @param logEntries The resolved log entries used to determine proof coverage.
  * @param verifier The verifier used to validate witness proofs.
+ * @param fetchFn Optional fetch override used to retrieve the witness proof file.
  * @returns The computed approval, satisfaction, and rejected-proof result for each requirement.
  */
 const evaluateRequiredWitnessChecks = async ({
@@ -642,16 +645,18 @@ const evaluateRequiredWitnessChecks = async ({
   did,
   logEntries,
   verifier,
+  fetchFn,
 }: {
   requiredWitnessChecks: RequiredWitnessCheck[];
   witnessProofs: WitnessProofFileEntry[] | undefined;
   did: string;
   logEntries: DIDLog;
   verifier: ResolutionOptions['verifier'];
+  fetchFn?: FetchLike;
 }): Promise<WitnessCheckResult[]> => {
   let resolvedWitnessProofs = witnessProofs;
   if (!resolvedWitnessProofs) {
-    resolvedWitnessProofs = await fetchWitnessProofs(did);
+    resolvedWitnessProofs = await fetchWitnessProofs(did, fetchFn);
   }
 
   const publishedVersionNumbers = new Map(logEntries.map((entry, index) => [entry.versionId, index + 1]));

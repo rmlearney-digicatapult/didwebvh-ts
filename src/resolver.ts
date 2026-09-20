@@ -1,17 +1,35 @@
-import type { DIDResolutionResult, DIDResolver, ParsedDID, Resolvable, ResolverRegistry } from 'did-resolver';
-import type { Verifier } from './interfaces.js';
+import type {
+  DIDResolutionOptions,
+  DIDResolutionResult,
+  DIDResolver,
+  ParsedDID,
+  Resolvable,
+  ResolverRegistry,
+} from 'did-resolver';
+import type { FetchLike, ResolutionOptions, Verifier } from './interfaces.js';
 import { resolveDID } from './method.js';
 import { toErrorResult, validateSingleVersionSelector, WEBVH_ERROR_TYPES } from './resolver-result.js';
 import { defaultVerifier } from './verifier.js';
 
 export interface GetResolverConfig {
   verifier?: Verifier;
+  /**
+   * Default fetch used to retrieve DID logs and witness proof files. Can be
+   * overridden per resolution via `resolver.resolve(didUrl, { fetch })`.
+   */
+  fetch?: FetchLike;
 }
+
+interface WebvhDidResolutionOptions extends DIDResolutionOptions {
+  fetch?: unknown;
+}
+
+const isFetchLike = (value: unknown): value is FetchLike => typeof value === 'function';
 
 /**
  * Returns a `did-resolver` registry entry for `did:webvh`, registrable in a
  * `Resolver` alongside other DID methods. Works zero-config via the built-in
- * Ed25519 verifier; pass `{ verifier }` to override.
+ * Ed25519 verifier; pass `{ verifier }` or `{ fetch }` to override defaults.
  */
 export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
   const verifier = config.verifier ?? defaultVerifier;
@@ -22,6 +40,14 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
     _resolver: Resolvable,
     _options
   ): Promise<DIDResolutionResult> => {
+    const options = (_options ?? {}) as WebvhDidResolutionOptions;
+    if (config.fetch !== undefined && !isFetchLike(config.fetch)) {
+      return toErrorResult('invalidOptions', 'Invalid fetch option: expected function.');
+    }
+    if (options.fetch !== undefined && !isFetchLike(options.fetch)) {
+      return toErrorResult('invalidOptions', 'Invalid fetch option: expected function.');
+    }
+
     // did:webvh selectors arrive as DID-URL query parameters (`?versionId=`),
     // which did-resolver exposes as the raw, undecoded `parsed.query` string.
     // Matrix-style DID parameters (`;key=value`) are not part of the DID spec;
@@ -59,9 +85,11 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
         return toErrorResult('invalidDidUrl', 'Malformed percent-encoding in DID URL query.');
       }
     }
-    const selector: { versionId?: string; versionTime?: Date; versionNumber?: number; verifier: Verifier } = {
-      verifier,
-    };
+    const selector: ResolutionOptions = { verifier };
+    const fetchOverride = options.fetch ?? config.fetch;
+    if (fetchOverride) {
+      selector.fetch = fetchOverride;
+    }
     if (params.versionId !== undefined) {
       selector.versionId = params.versionId;
     }

@@ -4,6 +4,7 @@ import type {
   CreateDIDResult,
   DataIntegrityProofTemplate,
   DIDLog,
+  FetchLike,
   Signer,
   WitnessProofFileEntry,
 } from '../src/interfaces.js';
@@ -1274,6 +1275,76 @@ describe('Witness Implementation Tests', async () => {
     });
 
     expect(resolved.didDocument?.id).toBe(initialDID.did);
+  });
+
+  test('Resolve fetches did-witness.json with a custom fetch override', async () => {
+    const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+    const didWithWitness = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey),
+      witness: {
+        threshold: 1,
+        witnesses: [{ id: witnessDid }],
+      },
+      verifier: testImplementation,
+    });
+
+    const genesisVersionId = didWithWitness.log[0].versionId;
+    const updatedDid = await updateDID({
+      log: didWithWitness.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey),
+      verifier: testImplementation,
+      witnessProofs: [
+        {
+          versionId: genesisVersionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness1),
+              genesisVersionId,
+              witnessVerificationMethod(witness1)
+            ),
+          ],
+        },
+      ],
+    });
+    const updatedVersionId = updatedDid.log[1].versionId;
+    const witnessProofs = [
+      {
+        versionId: updatedVersionId,
+        proof: [
+          await createWitnessProof(
+            createWitnessSigner(witness1),
+            updatedVersionId,
+            witnessVerificationMethod(witness1)
+          ),
+        ],
+      },
+    ];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch should not be called'));
+    const customFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => witnessProofs,
+      text: async () => JSON.stringify(witnessProofs),
+    } as Response) as unknown as ReturnType<typeof vi.fn> & FetchLike;
+
+    try {
+      const resolved = await resolveDIDFromLog(updatedDid.log, {
+        verifier: testImplementation,
+        fetch: customFetch,
+      });
+
+      expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(resolved.didDocument?.id).toBe(updatedDid.did);
+      expect(resolved.didResolutionMetadata.error).toBeUndefined();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   test('Reject witness proofs with invalid proofPurpose', async () => {
