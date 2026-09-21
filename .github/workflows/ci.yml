@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/setup@v1
+        uses: pnpm/setup@v2
         with:
           install: false
 
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/setup@v1
+        uses: pnpm/setup@v2
         with:
           install: false
 
