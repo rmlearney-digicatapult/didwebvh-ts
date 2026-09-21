@@ -220,6 +220,47 @@ describe('Controller CLI End-to-End Tests', () => {
     }
   });
 
+  test('Update DID with prerotation convenience key', async () => {
+    const prerotationUpdateLogFile = join(TEST_DIR, 'did-update-prerotation.jsonl');
+    const createProc = runCli([
+      'create',
+      '--address',
+      'example.com',
+      '--output',
+      prerotationUpdateLogFile,
+      '--portable',
+    ]);
+    expect(createProc.exitCode).toBe(0);
+
+    const nextKey1 = await generateTestVerificationMethod();
+    const nextKey2 = await generateTestVerificationMethod();
+    if (!nextKey1.publicKeyMultibase || !nextKey2.publicKeyMultibase) {
+      throw new Error('Generated next keys are missing publicKeyMultibase');
+    }
+    const nextKeyHash1 = await deriveNextKeyHash(nextKey1.publicKeyMultibase);
+    const nextKeyHash2 = await deriveNextKeyHash(nextKey2.publicKeyMultibase);
+
+    const proc = runCli([
+      'update',
+      '--log',
+      prerotationUpdateLogFile,
+      '--output',
+      prerotationUpdateLogFile,
+      '--next-key',
+      `did:key:${nextKey1.publicKeyMultibase}`,
+      '--next-key-hash',
+      nextKeyHash2,
+    ]);
+    expect(proc.exitCode).toBe(0);
+
+    const updatedLog = await readLogFromDisk(prerotationUpdateLogFile);
+    const updatedEntry = updatedLog[updatedLog.length - 1];
+
+    expect(updatedEntry.parameters.nextKeyHashes).toHaveLength(2);
+    expect(updatedEntry.parameters.nextKeyHashes).toContain(nextKeyHash1);
+    expect(updatedEntry.parameters.nextKeyHashes).toContain(nextKeyHash2);
+  });
+
   test('Update DID with alsoKnownAs', async () => {
     const akLogFile = join(TEST_DIR, 'did-aka.jsonl');
 

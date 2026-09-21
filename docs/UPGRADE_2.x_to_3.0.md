@@ -259,8 +259,9 @@ values in that field. Use `deriveNextKeyHash(updateKey)` first; the helper
 accepts a bare Ed25519 multikey, `did:key`, or `did:key` verification method and
 normalizes the input before hashing.
 
-For CLI users, `--next-key` accepts a future update key and derives the hash
-internally. `--next-key-hash` remains strict and expects an already-derived hash.
+For CLI users, `create` and `update` both accept `--next-key` for a future
+update key and derive the hash internally. `--next-key-hash` remains strict and
+expects an already-derived hash.
 
 **Old (2.x)**:
 
