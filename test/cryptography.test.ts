@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../src/assertions.js';
+import {
+  assertValidNextKeyHashes,
+  documentStateIsValid,
+  hashChainIsValid,
+  newKeysAreInNextKeys,
+  scidIsFromHash,
+} from '../src/assertions.js';
 import {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
@@ -411,6 +417,24 @@ describe('Assertion Guards', () => {
   test('newKeysAreInNextKeys throws when update key hash is not pre-committed', async () => {
     const unrelatedHash = await deriveNextKeyHash('z6Mkp6hULXj3f4P7vLQxqqQF6q2SCMXt9vEmx5R6M1sQ8YvY');
     await expect(newKeysAreInNextKeys([updateKey], [unrelatedHash])).rejects.toThrow('Invalid update key');
+  });
+
+  test('deriveNextKeyHash normalizes supported update key forms', async () => {
+    const bareHash = await deriveNextKeyHash(updateKey);
+    await expect(deriveNextKeyHash(`did:key:${updateKey}`)).resolves.toBe(bareHash);
+    await expect(deriveNextKeyHash(`did:key:${updateKey}#${updateKey}`)).resolves.toBe(bareHash);
+  });
+
+  test('assertValidNextKeyHashes rejects did:key and multikey values', async () => {
+    const nextKeyHash = await deriveNextKeyHash(updateKey);
+
+    expect(assertValidNextKeyHashes([nextKeyHash])).toEqual([nextKeyHash]);
+    expect(() => assertValidNextKeyHashes([`did:key:${updateKey}`])).toThrow(
+      'must be a derived pre-rotation key hash, not a did:key'
+    );
+    expect(() => assertValidNextKeyHashes([updateKey])).toThrow(
+      'must be a derived pre-rotation key hash, not an Ed25519 multikey'
+    );
   });
 
   test('scidIsFromHash throws for invalid SCID format', async () => {

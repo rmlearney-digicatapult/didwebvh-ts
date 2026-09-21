@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { generateTestVerificationMethod, TestCryptoImplementation } from '../../../test/utils.js';
 import { resolveDIDFromLog } from '../../method.js';
+import { deriveNextKeyHash } from '../../utils/crypto.js';
 import { type CliSigningKey, readLogFromDisk } from '../persistence.js';
 
 const REPO_ROOT = process.cwd();
@@ -128,8 +129,13 @@ describe('Controller CLI End-to-End Tests', () => {
 
   test('Create DID with prerotation', async () => {
     const prerotationLogFile = join(TEST_DIR, 'did-prerotation.jsonl');
-    const nextKeyHash1 = 'nextKey1Hash';
-    const nextKeyHash2 = 'nextKey2Hash';
+    const nextKey1 = await generateTestVerificationMethod();
+    const nextKey2 = await generateTestVerificationMethod();
+    if (!nextKey1.publicKeyMultibase || !nextKey2.publicKeyMultibase) {
+      throw new Error('Generated next keys are missing publicKeyMultibase');
+    }
+    const nextKeyHash1 = await deriveNextKeyHash(nextKey1.publicKeyMultibase);
+    const nextKeyHash2 = await deriveNextKeyHash(nextKey2.publicKeyMultibase);
 
     const proc = runCli([
       'create',
@@ -138,8 +144,8 @@ describe('Controller CLI End-to-End Tests', () => {
       '--output',
       prerotationLogFile,
       '--portable',
-      '--next-key-hash',
-      nextKeyHash1,
+      '--next-key',
+      `did:key:${nextKey1.publicKeyMultibase}`,
       '--next-key-hash',
       nextKeyHash2,
     ]);
